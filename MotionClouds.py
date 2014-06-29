@@ -43,11 +43,12 @@ else:
     size_T = 7
     figsize = (600, 600) # nice size, but requires more memory
 
+# TODO: use a parameter file
 import numpy as np
 N_X = 2**size
 N_Y = N_X
 N_frame = 2**size_T
-ft_0 = N_X/float(N_frame)
+ft_0 = np.inf
 # default parameters for the "standard Motion Cloud"
 alpha = 1.0
 sf_0 = 0.15
@@ -59,19 +60,21 @@ theta = 0.
 B_theta = np.pi/32.
 loggabor = True
 
+notebook = False
 figpath = 'results/'
 if not(os.path.isdir(figpath)):os.mkdir(figpath)
+recompute = False
 
-def get_grids(N_X, N_Y, N_frame, sparse=True):
+def get_grids(N_X, N_Y, N_frame, sparse=False):
     """
         Use that function to define a reference outline for envelopes in Fourier space.
         In general, it is more efficient to define dimensions as powers of 2.
 
     """
     if sparse:
-        fx, fy, ft = np.ogrid[(-N_X//2):((N_X-1)//2 + 1), (-N_Y//2):((N_Y-1)//2 + 1), (-N_frame//2):((N_frame-1)//2 + 1)]     # output is always even.
+        fx, fy, ft = np.ogrid[(-N_X//2):((N_X-1)//2 + 1), (-N_Y//2):((N_Y-1)//2 + 1), (-N_frame//2):((N_frame-1)//2 + 1)]     # output is always of even size.
     else:
-        fx, fy, ft = np.mgrid[(-N_X//2):((N_X-1)//2 + 1), (-N_Y//2):((N_Y-1)//2 + 1), (-N_frame//2):((N_frame-1)//2 + 1)]     # output is always even.
+        fx, fy, ft = np.mgrid[(-N_X//2):((N_X-1)//2 + 1), (-N_Y//2):((N_Y-1)//2 + 1), (-N_frame//2):((N_frame-1)//2 + 1)]     # output is always  of even size..
     fx, fy, ft = fx*1./N_X, fy*1./N_Y, ft*1./N_frame
     return fx, fy, ft
 
@@ -82,8 +85,12 @@ def frequency_radius(fx, fy, ft, ft_0=ft_0):
 
     """
     N_X, N_Y, N_frame = fx.shape[0], fy.shape[1], ft.shape[2]
-    R2 = fx**2 + fy**2 + (ft/ft_0)**2 # cf . Paul Schrater 00
-    R2[N_X//2 , N_Y//2 , N_frame//2 ] = np.inf
+    if ft_0==np.inf:
+        R2 = fx**2 + fy**2
+        R2[N_X//2 , N_Y//2 , :] = np.inf
+    else:
+        R2 = fx**2 + fy**2 + (ft/ft_0)**2 # cf . Paul Schrater 00
+        R2[N_X//2 , N_Y//2 , N_frame//2 ] = np.inf
     return np.sqrt(R2)
 
 def envelope_color(fx, fy, ft, alpha=alpha, ft_0=ft_0):
@@ -95,7 +102,12 @@ def envelope_color(fx, fy, ft, alpha=alpha, ft_0=ft_0):
     alpha = 2 red/brownian
     (see http://en.wikipedia.org/wiki/1/f_noise )
     """
+    N_X, N_Y, N_frame = fx.shape[0], fy.shape[1], ft.shape[2]
     f_radius = frequency_radius(fx, fy, ft, ft_0=ft_0)**alpha
+    if ft_0==np.inf:
+        f_radius[N_X//2 , N_Y//2 , : ] = np.inf
+    else:
+        f_radius[N_X//2 , N_Y//2 , N_frame//2 ] = np.inf
     return 1. / f_radius
 
 def envelope_radial(fx, fy, ft, sf_0=sf_0, B_sf=B_sf, ft_0=ft_0, loggabor=loggabor):
@@ -175,7 +187,6 @@ shape
 
     """
     (N_X, N_Y, N_frame) = envelope.shape
-    if sparseness > 0.: fx, fy, ft = get_grids(N_X, N_Y, N_frame, sparse=False)
     amps = 1.
     if impulse:
         phase = 0.
@@ -183,18 +194,20 @@ shape
         np.random.seed(seed=seed)
         phase = 2 * np.pi * np.random.rand(N_X, N_Y, N_frame)
         if do_amp:
-            amps = np.random.randn(N_X, N_Y, N_frame)
             # see Galerne, B., Gousseau, Y. & Morel, J.-M. Random phase textures: Theory and synthesis. IEEE Transactions in Image Processing (2010). URL http://www.biomedsearch.com/nih/Random-Phase-Textures-Theory-Synthesis/20550995.html. (basically, they conclude "Even though the two processes ADSN and RPN have different Fourier modulus distributions (see Section 4), they produce visually similar results when applied to natural images as shown by Fig. 11.")
-            if sparseness > 0.:
-		amps, phase =  np.zeros((N_X, N_Y, N_frame), dtype=np.complex), np.zeros((N_X, N_Y, N_frame))
-		coeff, rank = 1., 1
-                print 'I evaluate sparse Motion Cloud with ', np.int(threshold**(-1/sparseness)), ' components'
-                # TODO: here we make a sum of exactly similar components (corresponding to the enveloppes) such that there is no variability in their charcteristics
-		while rank**(-sparseness) > threshold:
-                    a, x, y, t = np.random.randn(), N_X * np.random.rand(), N_Y * np.random.rand(), N_frame * np.random.rand()
-                    amps +=  a * rank**(-sparseness) * np.exp(-1j*np.pi*(x*fx + y*fy + t*ft))
-                    rank += 1
-                print 'stopped sparse Motion Cloud with ', rank, ' components'
+            amps = np.random.randn(N_X, N_Y, N_frame)
+        # a special case when we want to build a texture using a sparse set of components (see Lagae et al.)
+        if sparseness > 0.:
+            fx, fy, ft = get_grids(N_X, N_Y, N_frame, sparse=False)
+            amps, phase =  np.zeros((N_X, N_Y, N_frame), dtype=np.complex), np.zeros((N_X, N_Y, N_frame))
+            coeff, rank = 1., 1
+            print 'I evaluate sparse Motion Cloud with ', np.int(threshold**(-1/sparseness)), ' components'
+            # TODO: here we make a sum of exactly similar components (corresponding to the enveloppes) such that there is no variability in their charcteristics
+            while rank**(-sparseness) > threshold:
+                a, x, y, t = np.random.randn(), N_X * np.random.rand(), N_Y * np.random.rand(), N_frame * np.random.rand()
+                amps +=  a * rank**(-sparseness) * np.exp(-1j*np.pi*(x*fx + y*fy + t*ft))
+                rank += 1
+            print 'stopped sparse Motion Cloud with ', rank, ' components'
 
     Fz = amps * envelope * np.exp(1j * phase)
 
@@ -204,21 +217,19 @@ shape
     z = np.fft.ifftn((Fz)).real
     return z
 
-
 ########################## Display Tools #######################################
 vext = '.mp4'
 ext = '.png'
 T_movie = 8. # this value defines the duration of a temporal period
-fps = int(N_frame / T_movie)
 
 # display parameters
 try:
-    import progressbar
+    import pyprind as progressbar
     PROGRESS = True
 except:
     PROGRESS = False
 
-# os.environ['ETS_TOOLKIT'] = 'qt4' # Works in Mac
+os.environ['ETS_TOOLKIT'] = 'qt4' # Works in Mac
 # os.environ['ETS_TOOLKIT'] = 'wx' # Works in Debian
 MAYAVI = 'Import'
 #MAYAVI = 'Avoid' # uncomment to avoid generating mayavi visualizations (and save some memory...)
@@ -376,16 +387,18 @@ def cube(im, azimuth=-45., elevation=130., roll=-180., name=None,
 
     mlab.close(all=True)
 
-def anim_exist(filename, vext=vext):
+def check_if_anim_exist(filename, vext=vext):
     """
     Check if the movie already exists
 
+    returns True if the movie does not exist, False if it does
+
     """
-    return not(os.path.isfile(filename+vext))
+    return not(os.path.isfile(os.path.join(figpath, filename + vext)))
 
-
+SUPPORTED_FORMATS = ['.h5', '.mpg', '.mp4', '.gif', '.zip', '.mat', '.mkv']
 def anim_save(z, filename, display=True, flip=False, vext=vext,
-              centered=False, fps=fps):
+              centered=False, T_movie=T_movie, verbose=False):
     """
     Saves a numpy 3D matrix (x-y-t) to a multimedia file.
 
@@ -395,15 +408,14 @@ def anim_save(z, filename, display=True, flip=False, vext=vext,
     import os                         # For issuing commands to the OS.
     import tempfile
     from scipy.misc.pilutil import toimage
+    fps = int(z.shape[-1] / T_movie)
     def make_frames(z):
         N_X, N_Y, N_frame = z.shape
         files = []
         tmpdir = tempfile.mkdtemp()
 
         if PROGRESS:
-            widgets = ["calculating", " ", progressbar.Percentage(), ' ',
-               progressbar.Bar(), ' ', progressbar.ETA()]
-            pbar = progressbar.ProgressBar(widgets=widgets, maxval=N_frame).start()
+            pbar = progressbar.ProgPercent(N_frame)
         print('Saving sequence ' + filename + vext)
         for frame in range(N_frame):
             if PROGRESS: pbar.update(frame)
@@ -413,9 +425,8 @@ def anim_save(z, filename, display=True, flip=False, vext=vext,
             toimage(image, high=255, low=0, cmin=0., cmax=1., pal=None,
                     mode=None, channel_axis=None).save(fname)
             files.append(fname)
-            if PROGRESS: pbar.update(frame)
 
-        if PROGRESS: pbar.finish()
+        if PROGRESS: print(pbar)
         return tmpdir, files
 
     def remove_frames(tmpdir, files):
@@ -426,26 +437,40 @@ def anim_save(z, filename, display=True, flip=False, vext=vext,
         for fname in files: os.remove(fname)
         if not(tmpdir == None): os.rmdir(tmpdir)
 
+    if verbose:
+        verb_ = ''
+    else:
+        verb_ = ' 2>/dev/null'
     if vext == '.mpg':
         # 1) create temporary frames
         tmpdir, files = make_frames(z)
         # 2) convert frames to movie
 #        cmd = 'ffmpeg -v 0 -y -sameq -loop_output 0 -r ' + str(fps) + ' -i ' + tmpdir + '/frame%03d.png  ' + filename + vext # + ' 2>/dev/null')
         #cmd = 'ffmpeg -v 0 -y -sameq  -loop_output 0 -i ' + tmpdir + '/frame%03d.png  ' + filename + vext # + ' 2>/dev/null')
-        os.system('ffmpeg -v 0 -y  -f image2 -r ' + str(fps) + ' -sameq -i ' + tmpdir + '/frame%03d.png  ' + filename + '.mpg 2>/dev/null')
-        #print('Doing : ', cmd)
-        #ret = os.system(cmd) # + ' 2>/dev/null')
-        #print ret
-        # To force the frame rate of the output file to 24 fps:
-        # ffmpeg -i input.avi -r 24 output.avi
+        options = ' -f image2  -r ' + str(fps) + ' -y '
+        os.system('ffmpeg -i ' + tmpdir + '/frame%03d.png ' + options + filename + vext + verb_)
         # 3) clean up
         #remove_frames(tmpdir, files)
     if vext == '.mp4': # specially tuned for iPhone/iPod http://www.dudek.org/blog/82
         # 1) create temporary frames
         tmpdir, files = make_frames(z)
         # 2) convert frames to movie
-        options = '-vcodec libx264 -y '
-        os.system('ffmpeg -i '  + tmpdir + '/frame%03d.png  ' + options + filename + vext + ' 2>/dev/null')
+#         options = ' -y -f image2pipe -c:v png -i - -c:v libx264 -preset ultrafast -qp 0 -movflags +faststart -pix_fmt yuv420p '
+#         options += ' -g ' + str(fps) + '  -r ' + str(fps) + ' '
+#         cmd = 'cat '  + tmpdir + '/*.png  | ffmpeg '  + options + filename + vext + verb_
+        options = ' -f mp4 -pix_fmt yuv420p -c:v libx264  -g ' + str(fps) + '  -r ' + str(fps) + ' '
+        cmd = 'ffmpeg -i '  + tmpdir + '/frame%03d.png ' + options + filename + vext + verb_
+        os.system(cmd)
+        # 3) clean up
+        remove_frames(tmpdir, files)
+
+    if vext == '.mkv': # specially tuned for iPhone/iPod http://www.dudek.org/blog/82
+        # 1) create temporary frames
+        tmpdir, files = make_frames(z)
+        # 2) convert frames to movie
+        options = ' -y -f image2pipe -c:v png -i - -c:v libx264 -preset ultrafast -qp 0 -movflags +faststart -pix_fmt yuv420p  -g ' + str(fps) + '  -r ' + str(fps) + ' '
+        cmd = 'cat '  + tmpdir + '/*.png  | ffmpeg '  + options + filename + vext + verb_
+        os.system(cmd)
         # 3) clean up
         remove_frames(tmpdir, files)
 
@@ -456,7 +481,7 @@ def anim_save(z, filename, display=True, flip=False, vext=vext,
 #        options = ' -pix_fmt rgb24 -r ' + str(fps) + ' -loop_output 0 '
 #        os.system('ffmpeg -i '  + tmpdir + '/frame%03d.png  ' + options + filename + vext + ' 2>/dev/null')
         options = ' -set delay 8 -colorspace GRAY -colors 256 -dispose 1 -loop 0 '
-        os.system('convert '  + tmpdir + '/frame*.png  ' + options + filename + vext )# + ' 2>/dev/null')
+        os.system('convert '  + tmpdir + '/frame*.png  ' + options + filename + vext + verb_)
         # 3) clean up
         remove_frames(tmpdir, files)
 
@@ -464,6 +489,7 @@ def anim_save(z, filename, display=True, flip=False, vext=vext,
         toimage(np.flipud(z[:, :, 0]).T, high=255, low=0, cmin=0., cmax=1., pal=None, mode=None, channel_axis=None).save(filename + vext)
 
     elif vext == '.zip':
+        # TODO : give the possiblity to specify the format of files inside the zip
         tmpdir, files = make_frames(z)
         import zipfile
         zf = zipfile.ZipFile(filename + vext, "w")
@@ -575,18 +601,48 @@ def figures_MC(fx, fy, ft, name, V_X=V_X, V_Y=V_Y, do_figs=True, do_movie=True,
     movies.
     The figures names are automatically generated.
     """
-    if anim_exist(name, vext=vext):
+    if check_if_anim_exist(name, vext=vext):
         z = envelope_gabor(fx, fy, ft, V_X=V_X, V_Y=V_Y,
                     B_V=B_V, sf_0=sf_0, B_sf=B_sf, loggabor=loggabor,
                     theta=theta, B_theta=B_theta, alpha=alpha)
         figures(z, name, vext=vext, do_figs=do_figs, do_movie=do_movie,
                     seed=seed, impulse=impulse, verbose=verbose, do_amp=do_amp, sparseness=sparseness)
+    else:
+        figures(z=None, name=name, vext=vext, do_figs=do_figs, do_movie=do_movie,
+                    seed=seed, impulse=impulse, verbose=verbose, do_amp=do_amp, sparseness=sparseness)
 
-def figures(z, name, vext=vext,do_movie=True, do_figs=True,
+def figures(z=None, name='MC', vext=vext, do_movie=True, do_figs=True,
                     seed=None, impulse=False, verbose=False, masking=False, do_amp=False, sparseness=0.):
+
     import_mayavi()
-    if ((MAYAVI == 'Import') or MAYAVI[:2]=='Ok') and do_figs and anim_exist(name, vext=ext): visualize(z, name=name)           # Visualize the Fourier Spectrum
-    if (do_movie and anim_exist(name, vext=vext)) or (MAYAVI and do_figs and anim_exist(name + '_cube', vext=ext)):
+
+    if ((MAYAVI == 'Import') or MAYAVI[:2]=='Ok') and do_figs and check_if_anim_exist(name, vext=ext):
+        visualize(z, name=os.path.join(figpath, name + ext))           # Visualize the Fourier Spectrum
+
+    if (do_movie and check_if_anim_exist(name, vext=vext)) or (((MAYAVI == 'Import') or MAYAVI[:2]=='Ok') and do_figs and check_if_anim_exist(name + '_cube', vext=ext)):
         movie = rectif(random_cloud(z, seed=seed, impulse=impulse, do_amp=do_amp, sparseness=sparseness), verbose=verbose)
-    if (((MAYAVI == 'Import') or MAYAVI[:2]=='Ok') and do_figs and anim_exist(name + '_cube', vext=ext)): cube(movie, name=name + '_cube')   # Visualize the Stimulus cube
-    if (do_movie and anim_exist(name, vext=vext)): anim_save(movie, name, display=False, vext=vext)
+
+    if (((MAYAVI == 'Import') or MAYAVI[:2]=='Ok') and do_figs and check_if_anim_exist(name + '_cube', vext=ext)):
+        cube(movie, name=os.path.join(figpath, name + '_cube' + ext))   # Visualize the Stimulus cube
+
+    if (do_movie) and check_if_anim_exist(name, vext=vext):
+        anim_save(movie, os.path.join(figpath, name), display=False, vext=vext)
+
+    if notebook:
+        in_show_video(name)
+
+def in_show_video(name):
+    print(name)
+    import os
+    from IPython.core.display import display, Image
+    if os.path.isfile(os.path.join(figpath, name + ext)):
+        display(Image(filename = os.path.join(figpath, name + ext)))
+    if os.path.isfile(os.path.join(figpath, name + '_cube' + ext)):
+        display(Image(filename = os.path.join(figpath, name + '_cube' + ext)))
+    from IPython.core.display import HTML
+    from base64 import b64encode
+    video = open(os.path.join(figpath, name + vext), "rb").read()
+    video_encoded = b64encode(video)
+    video_tag = '<video controls  autoplay="autoplay" loop="loop" width=50% src="data:video/x-m4v;base64,{0}">'.format(video_encoded)
+    display(HTML(data=video_tag))
+
