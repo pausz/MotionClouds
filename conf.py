@@ -94,15 +94,17 @@ TRANSLATIONS_PATTERN = "{path}.{ext}.{lang}"
 NAVIGATION_LINKS = {
     DEFAULT_LANG: (
         ('/index.html', 'Home', 'icon-home'),
-        ('/install.html', 'Install', 'icon-terminal'),
-        ('/blog', 'Blog!', 'icon-folder-open-user'),
+        ('/install.html', 'Install', 'icon-italic'),
+#        ('/blog', 'Blog!', 'icon-folder-open-user'),
         ('/archive.html', 'Archives', 'icon-folder-open-alt'),
-        ('/categories/index.html', 'Tags', 'icon-tags'),
-        ('/rss.xml', 'RSS', 'icon-rss'),
-#         ('/portfolio/portfolio.slides.html', 'Portfolio', 'icon-briefcase'),
+		('/galleries/index.html', 'Galleries', 'icon-book'),
+#        ('/categories/index.html', 'Tags', 'icon-pushpin'),
+		('https://www.google.fr/cse/publicurl?cx=005955371941833639548:qupzal9fqky', 'Search', 'icon-search'),
+#        ('/rss.xml', 'RSS', 'icon-rss'),
+#        ('/portfolio/portfolio.slides.html', 'Portfolio', 'icon-briefcase'),
         ('http://invibe.net', 'About my research', 'icon-user'),
         ('https://github.com/NeuralEnsemble/MotionClouds', 'My Github', 'icon-github'),
-        ('https://plus.google.com/+LaurentPerrinet', 'My Google plus', 'icon-igoogle-plus'),
+#        ('https://plus.google.com/+LaurentPerrinet', 'My Google plus', 'icon-google-plus'),
     ),
 }
 
@@ -238,11 +240,11 @@ COMPILERS = {
 # output / TRANSLATION[lang] / TAG_PATH / index.html (list of tags)
 # output / TRANSLATION[lang] / TAG_PATH / tag.html (list of posts for a tag)
 # output / TRANSLATION[lang] / TAG_PATH / tag.xml (RSS feed for a tag)
-TAG_PATH = "categories"
+# TAG_PATH = "categories"
 
 # If TAG_PAGES_ARE_INDEXES is set to True, each tag's page will contain
 # the posts themselves. If set to False, it will be just a list of links.
-TAG_PAGES_ARE_INDEXES = True
+TAG_PAGES_ARE_INDEXES = False
 
 # Final location for the main blog page and sibling paginated pages is
 # output / TRANSLATION[lang] / INDEX_PATH / index-*.html
@@ -251,7 +253,7 @@ INDEX_PATH = "blog"
 # Create per-month archives instead of per-year
 # CREATE_MONTHLY_ARCHIVE = True
 # Create one large archive instead of per-year
-# CREATE_SINGLE_ARCHIVE = False
+CREATE_SINGLE_ARCHIVE = True
 # Final locations for the archives are:
 # output / TRANSLATION[lang] / ARCHIVE_PATH / ARCHIVE_FILENAME
 # output / TRANSLATION[lang] / ARCHIVE_PATH / YEAR / index.html
@@ -291,12 +293,21 @@ REDIRECTIONS = []
 # And then do a backup, or run `nikola ping` from the `ping`
 # plugin (`nikola install_plugin ping`).
 # To do manual deployment, set it to []
-DEPLOY_COMMANDS = ["git add .",
-                   "git commit -am 'Update'",
-                   "git push origin master",
-                   "git subtree split --prefix output -b gh-pages",
-                   "git push -f origin gh-pages:gh-pages",
-                   "git branch -D gh-pages"]
+# DEPLOY_COMMANDS = ["git add .",
+#                    "git commit -am 'Update'",
+#                    "git push origin master",
+#                    "git subtree split --prefix output -b gh-pages",
+#                    "git push -f origin gh-pages:gh-pages",
+#                    "git branch -D gh-pages"]
+
+# DEPLOY_COMMANDS = ["git add .",
+#                    "git commit --dry-run -am 'Test' |grep -q -v 'nothing to commit' && git commit -am 'Update'; git push",
+#                    "./deploy.sh"]
+
+DEPLOY_COMMANDS = [
+					"./deploy.sh"
+]
+
 
 # For user.github.io/organization.github.io pages, the DEPLOY branch
 # MUST be 'master', and 'gh-pages' for other repositories.
@@ -373,14 +384,14 @@ DEPLOY_COMMANDS = ["git add .",
 
 # Galleries are folders in galleries/
 # Final location of galleries will be output / GALLERY_PATH / gallery_name
-# GALLERY_PATH = "galleries"
-# THUMBNAIL_SIZE = 180
-# MAX_IMAGE_SIZE = 1280
-# USE_FILENAME_AS_TITLE = True
-# EXTRA_IMAGE_EXTENSIONS = []
+GALLERY_PATH = "galleries"
+THUMBNAIL_SIZE = 180
+MAX_IMAGE_SIZE = 1280
+USE_FILENAME_AS_TITLE = False
+EXTRA_IMAGE_EXTENSIONS = []
 #
 # If set to False, it will sort by filename instead. Defaults to True
-# GALLERY_SORT_BY_DATE = True
+GALLERY_SORT_BY_DATE = True
 
 # #############################################################################
 # HTML fragments and diverse things that are used by the templates
@@ -412,10 +423,10 @@ DEPLOY_COMMANDS = ["git add .",
 # FAVICONS contains (name, file, size) tuples.
 # Used for create favicon link like this:
 # <link rel="name" href="file" sizes="size"/>
-# FAVICONS = {
-#     ("icon", "/favicon.ico", "16x16"),
+FAVICONS = {
+     ("icon", "favicon.ico", "16x16"),
 #     ("icon", "/icon_128x128.png", "128x128"),
-# }
+}
 
 # Show only teasers in the index pages? Defaults to False.
 INDEX_TEASERS = True
@@ -493,6 +504,8 @@ COMMENT_SYSTEM_ID = "invibe"
 # If set to True, you can disable them for individual posts and pages using
 # the "noannotations" metadata.
 # ANNOTATIONS = False
+
+POSTS_INDEX = False
 
 # Create index.html for story folders?
 # STORY_INDEX = False
@@ -743,7 +756,8 @@ UNSLUGIFY_TITLES = True
 # USE_BUNDLES = True
 
 # Plugins you don't want to use. Be careful :-)
-# DISABLED_PLUGINS = ["render_galleries"]
+DISABLED_PLUGINS = ["generate_rss",
+					"blog"]
 
 # Add the absolute paths to directories containing plugins to use them.
 # For example, the `plugins` directory of your clone of the Nikola plugins
